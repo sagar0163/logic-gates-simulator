@@ -29,3 +29,4 @@ print(and_gate.output)  # False
 ## Author
 
 Sagar Jadhav
+# Updated
