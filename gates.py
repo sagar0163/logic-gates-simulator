@@ -4,7 +4,7 @@ Logic Gates Simulator - Interactive digital logic circuit simulator
 Author: Sagar Jadhav
 """
 
-from collections import defaultdict
+from collections import defaultdict, deque
 
 class Gate:
     """Base class for all logic gates"""
@@ -88,6 +88,7 @@ class Circuit:
         self.wires = defaultdict(list)
         self.inputs = {}
         self.outputs = {}
+        self._topo_order = None
     
     def add_gate(self, name, gate_type):
         gate_types = {
@@ -102,6 +103,7 @@ class Circuit:
         if gate_type not in gate_types:
             raise CircuitError(f"Unknown gate type: '{gate_type}'")
         self.gates[name] = gate_types[gate_type]()
+        self._topo_order = None
         return self.gates[name]
     
     def add_input(self, name, value=False):
@@ -120,8 +122,43 @@ class Circuit:
         if to_gate not in self.gates:
             raise CircuitError(f"Unknown destination gate: '{to_gate}'")
         self.wires[from_node].append((to_gate, to_input_index))
+        self._topo_order = None
+    
+    def _build_topo_order(self):
+        """Kahn's algorithm: topological order of gates, memoized."""
+        fan_in = defaultdict(set)
+        fan_out = defaultdict(list)
+        for src, dests in self.wires.items():
+            for g, _ in dests:
+                if g in self.gates:
+                    fan_out[src].append(g)
+                    if src in self.gates:
+                        fan_in[g].add(src)
+
+        in_degree = {g: len(fan_in[g]) for g in self.gates}
+        ready = deque(g for g in self.gates if in_degree[g] == 0)
+        order = []
+
+        while ready:
+            gate = ready.popleft()
+            order.append(gate)
+            for g in fan_out[gate]:
+                if g in self.gates:
+                    in_degree[g] -= 1
+                    if in_degree[g] == 0:
+                        ready.append(g)
+
+        if len(order) < len(self.gates):
+            cycle_gates = [g for g in self.gates if g not in order]
+            raise CircuitError(f"Cycle detected involving gates: {', '.join(cycle_gates)}")
+
+        self._topo_order = order
+        return order
     
     def evaluate(self):
+        if self._topo_order is None:
+            self._build_topo_order()
+
         for gate in self.gates.values():
             gate.output = False
             for i in range(len(gate.inputs)):
@@ -131,34 +168,13 @@ class Circuit:
             for gate, idx in self.wires[name]:
                 self.gates[gate].set_input(idx, value)
 
-        evaluated = set()
-        while len(evaluated) < len(self.gates):
-            progress = False
-            for name, gate in self.gates.items():
-                if name in evaluated:
-                    continue
-                ready = True
-                for src, dests in self.wires.items():
-                    for g, idx in dests:
-                        if g == name:
-                            if src in self.gates and src not in evaluated:
-                                ready = False
-                                break
-                    if not ready:
-                        break
+        for name in self._topo_order:
+            gate = self.gates[name]
+            gate.evaluate()
+            for g, idx in self.wires[name]:
+                if g in self.gates:
+                    self.gates[g].set_input(idx, gate.output)
 
-                if ready:
-                    gate.evaluate()
-                    evaluated.add(name)
-                    progress = True
-                    for g, idx in self.wires[name]:
-                        if g in self.gates:
-                            self.gates[g].set_input(idx, gate.output)
-            
-            if not progress:
-                cycle_gates = [g for g in self.gates if g not in evaluated]
-                raise CircuitError(f"Cycle detected involving gates: {', '.join(cycle_gates)}")
-        
         result = {}
         for name, source in self.outputs.items():
             if source in self.gates:
