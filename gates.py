@@ -4,6 +4,8 @@ Logic Gates Simulator - Interactive digital logic circuit simulator
 Author: Sagar Jadhav
 """
 
+from collections import defaultdict
+
 class Gate:
     """Base class for all logic gates"""
     def __init__(self, name, inputs=2):
@@ -79,7 +81,7 @@ class Circuit:
     def __init__(self, name):
         self.name = name
         self.gates = {}
-        self.wires = {}
+        self.wires = defaultdict(list)
         self.inputs = {}
         self.outputs = {}
     
@@ -107,33 +109,39 @@ class Circuit:
             self.inputs[name] = value
     
     def wire(self, from_node, to_gate, to_input_index):
-        self.wires[from_node] = (to_gate, to_input_index)
+        self.wires[from_node].append((to_gate, to_input_index))
     
     def evaluate(self):
         for gate in self.gates.values():
             gate.output = False
-        
+            for i in range(len(gate.inputs)):
+                gate.inputs[i] = False
+
         for name, value in self.inputs.items():
-            if name in self.wires:
-                gate, idx = self.wires[name]
+            for gate, idx in self.wires[name]:
                 self.gates[gate].set_input(idx, value)
-        
+
         evaluated = set()
         while len(evaluated) < len(self.gates):
             for name, gate in self.gates.items():
                 if name in evaluated:
                     continue
                 ready = True
-                for i, inp in enumerate(gate.inputs):
-                    for src, (g, idx) in self.wires.items():
-                        if g == name and idx == i:
+                for src, dests in self.wires.items():
+                    for g, idx in dests:
+                        if g == name:
                             if src in self.gates and src not in evaluated:
                                 ready = False
                                 break
-                
+                    if not ready:
+                        break
+
                 if ready:
                     gate.evaluate()
                     evaluated.add(name)
+                    for g, idx in self.wires[name]:
+                        if g in self.gates:
+                            self.gates[g].set_input(idx, gate.output)
         
         result = {}
         for name, source in self.outputs.items():
