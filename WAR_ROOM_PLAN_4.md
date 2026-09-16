@@ -1,6 +1,0 @@
-- [x] Create test_gates.py test suite.
-- [x] Add tests for all basic gates (AND, OR, NOT, NAND, NOR, XOR, XNOR).
-- [x] Add tests for Half Adder and Full Adder (all rows).
-- [x] Add tests for Circuit.wire fan-out and cycle detection.
-- [x] Add tests for truth-table generation logic.
-- [x] Ensure all tests pass.
