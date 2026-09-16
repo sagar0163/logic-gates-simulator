@@ -5,7 +5,7 @@
 - [x] 3. Replace `evaluate()` body with single-pass O(G+W) traversal in topo order
 - [x] 4. Verify cycle detection still works (Kahn's leftover nodes → CircuitError)
 - [x] 5. Write golden correctness test: all acyclic circuits produce byte-identical outputs
-- [ ] 6. Write benchmark script `bench_topo.py` (timeit over truth tables n=8..14)
-- [ ] 7. Run benchmarks, record before/after numbers
-- [ ] 8. Run full test suite; fix any regressions
+- [x] 6. Write benchmark script `bench_topo.py` (timeit over truth tables n=8..14)
+- [x] 7. Run benchmarks, record before/after numbers
+- [x] 8. Run full test suite; fix any regressions (15 passed)
 - [ ] 9. Final commit + delete plan file
