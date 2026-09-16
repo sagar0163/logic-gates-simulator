@@ -1,5 +1,0 @@
-- [ ] Define `CircuitError` in `gates.py` inheriting from `Exception`.
-- [ ] Fix `add_gate` to raise `CircuitError` on unknown gate type.
-- [ ] Fix `wire` to raise `CircuitError` on unknown `from_node` or `to_gate`.
-- [ ] Fix `evaluate` to detect cycles (raise `CircuitError` with involved gates).
-- [ ] Add tests for these cases.
