@@ -108,6 +108,7 @@ class Circuit:
     
     def add_input(self, name, value=False):
         self.inputs[name] = value
+        self._topo_order = None
     
     def add_output(self, name, source):
         self.outputs[name] = source

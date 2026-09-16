@@ -171,6 +171,20 @@ class TopoCacheTest(unittest.TestCase):
         c.evaluate()
         self.assertIs(first, c._topo_order, "topo order must be memoized")
 
+    def test_order_rebuilt_after_input_added(self):
+        c = make_full_adder()
+        c.evaluate()
+        c.add_input('D', False)
+        self.assertIsNone(c._topo_order, "add_input must invalidate cache")
+
+    def test_set_input_value_does_not_invalidate(self):
+        c = make_full_adder()
+        c.evaluate()
+        first = c._topo_order
+        c.set_input('A', True)
+        self.assertIs(first, c._topo_order,
+                      "value-only input change must not rebuild topo order")
+
     def test_order_rebuilt_after_wire_change(self):
         c = make_full_adder()
         c.evaluate()
