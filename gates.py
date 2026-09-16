@@ -76,6 +76,10 @@ class XNORGate(Gate):
         self.output = not (self.inputs[0] ^ self.inputs[1])
         return self.output
 
+class CircuitError(Exception):
+    """Exception raised for errors in the circuit (e.g., wiring errors, cycles)."""
+    pass
+
 class Circuit:
     """Digital circuit simulator"""
     def __init__(self, name):
@@ -95,6 +99,8 @@ class Circuit:
             'XOR': XORGate,
             'XNOR': XNORGate,
         }
+        if gate_type not in gate_types:
+            raise CircuitError(f"Unknown gate type: '{gate_type}'")
         self.gates[name] = gate_types[gate_type]()
         return self.gates[name]
     
@@ -109,6 +115,10 @@ class Circuit:
             self.inputs[name] = value
     
     def wire(self, from_node, to_gate, to_input_index):
+        if from_node not in self.inputs and from_node not in self.gates:
+            raise CircuitError(f"Unknown source node: '{from_node}'")
+        if to_gate not in self.gates:
+            raise CircuitError(f"Unknown destination gate: '{to_gate}'")
         self.wires[from_node].append((to_gate, to_input_index))
     
     def evaluate(self):
@@ -123,6 +133,7 @@ class Circuit:
 
         evaluated = set()
         while len(evaluated) < len(self.gates):
+            progress = False
             for name, gate in self.gates.items():
                 if name in evaluated:
                     continue
@@ -139,9 +150,14 @@ class Circuit:
                 if ready:
                     gate.evaluate()
                     evaluated.add(name)
+                    progress = True
                     for g, idx in self.wires[name]:
                         if g in self.gates:
                             self.gates[g].set_input(idx, gate.output)
+            
+            if not progress:
+                cycle_gates = [g for g in self.gates if g not in evaluated]
+                raise CircuitError(f"Cycle detected involving gates: {', '.join(cycle_gates)}")
         
         result = {}
         for name, source in self.outputs.items():
