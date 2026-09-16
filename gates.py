@@ -4,7 +4,13 @@ Logic Gates Simulator - Interactive digital logic circuit simulator
 Author: Sagar Jadhav
 """
 
+import json
 from collections import defaultdict
+
+SERIALIZATION_FORMAT = "logic-gates-simulator"
+SERIALIZATION_VERSION = 1
+_JSON_KEYS = frozenset({"format", "version", "name", "inputs", "gates", "wires", "outputs"})
+_WIRE_KEYS = frozenset({"from", "to_gate", "to_input"})
 
 class Gate:
     """Base class for all logic gates"""
@@ -119,6 +125,13 @@ class Circuit:
             raise CircuitError(f"Unknown source node: '{from_node}'")
         if to_gate not in self.gates:
             raise CircuitError(f"Unknown destination gate: '{to_gate}'")
+        gate = self.gates[to_gate]
+        if not isinstance(to_input_index, int) or isinstance(to_input_index, bool):
+            raise CircuitError(f"Invalid input index for gate '{to_gate}', not an integer")
+        if to_input_index < 0 or to_input_index >= len(gate.inputs):
+            raise CircuitError(
+                f"Invalid input index {to_input_index} for gate '{to_gate}' ({gate.name})"
+            )
         self.wires[from_node].append((to_gate, to_input_index))
     
     def evaluate(self):
@@ -178,6 +191,152 @@ class Circuit:
             row = ' | '.join(['✓' if b else '✗' for b in bits])
             out = ' | '.join(['✓' if result.get(k, False) else '✗' for k in self.outputs.keys()])
             print(f"{row} | {out}")
+
+    def to_json(self, indent=2):
+        """Serialize the circuit to a JSON string.
+
+        The output is a plain, human-readable object with a stable schema:
+        format/version markers, the circuit name, input/output names, the
+        gate table, and a flat list of wires. Only booleans, strings, and
+        integers are used, so it can be shared and diffed safely.
+        """
+        data = {
+            "format": SERIALIZATION_FORMAT,
+            "version": SERIALIZATION_VERSION,
+            "name": self.name,
+            "inputs": list(self.inputs.keys()),
+            "gates": {name: gate.name for name, gate in self.gates.items()},
+            "wires": [
+                {"from": src, "to_gate": sink, "to_input": index}
+                for src, sinks in self.wires.items()
+                for sink, index in sinks
+            ],
+            "outputs": dict(self.outputs),
+        }
+        return json.dumps(data, indent=indent)
+
+    @classmethod
+    def from_json(cls, data):
+        """Rebuild a Circuit from a JSON string or an already-parsed dict.
+
+        Parsing is strict: only ``json.load``-produced objects are accepted,
+        unknown top-level/wire keys are rejected, every reference must point
+        at a real input/gate, and cyclic wiring is refused. No code is ever
+        executed dynamically and no attributes are set from attacker-controlled
+        names.
+        """
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError as exc:
+                raise CircuitError(f"Malformed JSON: {exc}") from exc
+
+        if not isinstance(data, dict):
+            raise CircuitError(f"Expected a JSON object, got {type(data).__name__}")
+
+        unknown = set(data) - _JSON_KEYS
+        if unknown:
+            raise CircuitError(f"Unknown key(s): {', '.join(sorted(unknown))}")
+        missing = _JSON_KEYS - set(data)
+        if missing:
+            raise CircuitError(f"Missing key(s): {', '.join(sorted(missing))}")
+
+        if data["format"] != SERIALIZATION_FORMAT:
+            raise CircuitError(f"Unsupported format: '{data['format']}'")
+        if not isinstance(data["version"], int) or isinstance(data["version"], bool):
+            raise CircuitError(f"Unsupported version: {data['version']!r}")
+        if data["version"] != SERIALIZATION_VERSION:
+            raise CircuitError(f"Unsupported version: {data['version']!r}")
+        if not isinstance(data["name"], str):
+            raise CircuitError("'name' must be a string")
+        if not isinstance(data["inputs"], list) or not all(
+            isinstance(i, str) for i in data["inputs"]
+        ):
+            raise CircuitError("'inputs' must be a list of strings")
+        if not isinstance(data["gates"], dict) or any(
+            not isinstance(k, str) or not isinstance(v, str)
+            for k, v in data["gates"].items()
+        ):
+            raise CircuitError("'gates' must map gate names to gate type strings")
+        if not isinstance(data["wires"], list):
+            raise CircuitError("'wires' must be a list")
+        if not isinstance(data["outputs"], dict) or any(
+            not isinstance(k, str) or not isinstance(v, str)
+            for k, v in data["outputs"].items()
+        ):
+            raise CircuitError("'outputs' must map output names to gate names")
+
+        circuit = cls(data["name"])
+
+        for input_name in data["inputs"]:
+            circuit.add_input(input_name)
+
+        for gate_name, gate_type in data["gates"].items():
+            circuit.add_gate(gate_name, gate_type)
+
+        for wire in data["wires"]:
+            if not isinstance(wire, dict):
+                raise CircuitError("Each wire must be an object")
+            unknown_wire = set(wire) - _WIRE_KEYS
+            if unknown_wire:
+                raise CircuitError(f"Unknown wire key(s): {', '.join(sorted(unknown_wire))}")
+            missing_wire = _WIRE_KEYS - set(wire)
+            if missing_wire:
+                raise CircuitError(f"Wire missing key(s): {', '.join(sorted(missing_wire))}")
+            if not isinstance(wire["from"], str) or not isinstance(wire["to_gate"], str):
+                raise CircuitError("Wire 'from' and 'to_gate' must be strings")
+            circuit.wire(wire["from"], wire["to_gate"], wire["to_input"])
+
+        for output_name, source in data["outputs"].items():
+            if source not in circuit.gates:
+                raise CircuitError(
+                    f"Output '{output_name}' references unknown gate: '{source}'"
+                )
+            circuit.add_output(output_name, source)
+
+        cycle_gates = circuit._detect_cycle_gates()
+        if cycle_gates:
+            raise CircuitError(
+                f"Cycle detected involving gates: {', '.join(cycle_gates)}"
+            )
+
+        return circuit
+
+    def _detect_cycle_gates(self):
+        """Return the list of gates trapped in a wiring cycle (empty if none)."""
+        children = defaultdict(list)
+        indegree = {name: 0 for name in self.gates}
+        for src, sinks in self.wires.items():
+            if src not in self.gates:
+                continue
+            for sink, _index in sinks:
+                if sink in self.gates:
+                    children[src].append(sink)
+                    indegree[sink] += 1
+
+        queue = [name for name in self.gates if indegree[name] == 0]
+        removed = set(queue)
+        while queue:
+            current = queue.pop(0)
+            for child in children[current]:
+                indegree[child] -= 1
+                if indegree[child] == 0:
+                    queue.append(child)
+                    removed.add(child)
+        return [name for name in self.gates if name not in removed]
+
+
+def load_circuit(filename):
+    """Load a Circuit from a JSON file using strict validation."""
+    with open(filename, encoding="utf-8") as handle:
+        return Circuit.from_json(json.load(handle))
+
+
+def save_circuit(circuit, filename, indent=2):
+    """Save a Circuit to a JSON file as human-readable text."""
+    with open(filename, "w", encoding="utf-8") as handle:
+        handle.write(circuit.to_json(indent=indent))
+        handle.write("\n")
 
 def demo_basic_gates():
     print("=" * 50)
