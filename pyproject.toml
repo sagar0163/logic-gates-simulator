@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "logic-gates-simulator"
+version = "0.1.0"
+description = "Zero-dependency interactive digital logic circuit simulator"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Sagar Jadhav" },
+]
+keywords = ["logic", "gates", "circuit", "simulator", "digital"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+]
+dependencies = []
+
+[project.scripts]
+logic-gates = "logic_gates.__main__:main"
+
+[tool.setuptools]
+packages = ["logic_gates"]
