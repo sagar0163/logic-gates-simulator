@@ -222,7 +222,8 @@ class Circuit:
         Parsing is strict: only ``json.load``-produced objects are accepted,
         unknown top-level/wire keys are rejected, every reference must point
         at a real input/gate, and cyclic wiring is refused. No code is ever
-        evaluated (no eval/exec/pickle, no attribute injection).
+        executed dynamically and no attributes are set from attacker-controlled
+        names.
         """
         if isinstance(data, str):
             try:
