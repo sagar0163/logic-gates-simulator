@@ -7,3 +7,6 @@ update_*.txt
 v*.txt
 x
 .DS_Store
+build/
+dist/
+*.egg-info/
