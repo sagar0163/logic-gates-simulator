@@ -1,0 +1,6 @@
+- [x] Create pyproject.toml
+- [x] Package logic_gates
+- [x] Setup console script
+- [x] Add LICENSE
+- [x] Update README
+- [x] Fix test imports and framework

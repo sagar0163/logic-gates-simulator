@@ -7,7 +7,7 @@ previous wires. This test fails on the buggy dict-based wiring.
 
 import unittest
 
-from gates import Circuit
+from logic_gates import Circuit
 
 
 class FanOutTest(unittest.TestCase):
