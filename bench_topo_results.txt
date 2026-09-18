@@ -1,0 +1,33 @@
+Issue #3 benchmark: greedy O(G^2*W) vs memoized topo O(G+W)
+Circuit: n-input XOR-reduction chain (n-1 XOR gates, depth n)
+Timing: median of 3 full 2^n-row truth tables
+
+ n input |    rows | gates |  greedy (s) |  topo (s) | speedup
+--------------------------------------------------------------
+       8 |     256 |     7 |      0.0052 |    0.0028 |    1.8x
+       9 |     512 |     8 |      0.0234 |    0.0101 |    2.3x
+      10 |    1024 |     9 |      0.0608 |    0.0410 |    1.5x
+      11 |    2048 |    10 |      0.1950 |    0.0684 |    2.9x
+      12 |    4096 |    11 |      0.3497 |    0.1086 |    3.2x
+      13 |    8192 |    12 |      0.8871 |    0.3817 |    2.3x
+      14 |   16384 |    13 |      2.1792 |    0.3141 |    6.9x
+---
+Notes:
+- Circuit under test: n-input XOR-reduction chain (n-1 XOR gates, depth n) --
+  a worst-case shape for the greedy fixed-point loop (one full pass per depth
+  level => O(G^2*W) per evaluation), the exact bottleneck described in #3.
+- "greedy" is a byte-for-byte copy of the pre-#3 algorithm; "topo" is the new
+  memoized topological-order evaluation (O(G+W) per evaluation after one
+  cached O(G+W) Kahn build). Byte-identical outputs on all rows verified
+  in-loop (verify_identical).
+- Timings include the shared O(n * 2^n) input-scan loop, so the measured gap
+  understates the pure per-evaluation gain.
+- Scaling evidence: adding one input doubles the row count (2x) AND deepens
+  the chain; greedy grows ~2.3-2.6x per step (superlinear), topo stays ~1-2x
+  per step. At n=14 (16384 rows) topo is ~7x faster and the gap widens with n.
+
+Before (#3 unshipped): every truth-table row re-scanned ALL wires for EVERY
+un-evaluated gate on every pass -> worst case O(G^2*W) per row, no cached
+ordering between calls.
+After (#3 landed): Kahn topological order built once + invalidated on any
+wiring/gate change; each row evaluates in a single O(G+W) topo pass.
